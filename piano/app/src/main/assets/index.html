@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Piano Studio</title>
+<style>
+:root{--bg:#0a0a0b;--panel:#151518;--panel2:#1d1d21;--line:#303036;--text:#f4f2ed;--muted:#aaa7a0;--gold:#d7b878;--white:#f7f4eb;--black:#151519}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif;height:100%;overflow:hidden}
+body{touch-action:none}
+#app{height:100%;display:flex;flex-direction:column;padding:10px 12px env(safe-area-inset-bottom) 12px;gap:8px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
+.brand{font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:14px}
+.status{font-size:11px;color:var(--muted);white-space:nowrap}
+.controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+button,select,input{font:inherit}
+button,.select{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;min-height:40px;padding:0 11px}
+button:active{transform:translateY(1px);background:var(--panel2)}
+button.active{border-color:var(--gold);color:var(--gold)}
+.small{font-size:12px}
+#studio{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+#pianoViewport{position:relative;flex:1;min-height:0;border:1px solid #27272c;border-radius:14px;background:#101013;overflow:hidden;box-shadow:inset 0 1px 0 #34343a}
+#piano{height:100%;position:relative;touch-action:none;user-select:none;transform-origin:left top}
+.key{position:absolute;top:0;border-radius:0 0 7px 7px;touch-action:none;user-select:none}
+.white{height:100%;background:linear-gradient(90deg,#fffdf6,#e8e3d7);border-right:1px solid #a8a39a;box-shadow:inset 0 -5px 0 #c6c0b5}
+.white.down{background:linear-gradient(90deg,#ddd7c9,#c8c1b4);box-shadow:inset 0 -5px 0 #a79f92}
+.black{height:61%;z-index:3;background:linear-gradient(90deg,#303035,#09090b 62%,#242428);border:1px solid #020203;border-top:0;box-shadow:0 6px 8px #0009}
+.black.down{background:linear-gradient(90deg,#5b4c32,#17130c 62%,#3e3320)}
+.label{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:10px;color:#5d5952;pointer-events:none}
+.black .label{bottom:5px;color:#aaa39a;font-size:8px}
+#bottom{display:flex;align-items:center;gap:8px;min-height:46px;overflow:auto;padding-bottom:2px}
+#bottom .group{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:4px 6px;white-space:nowrap}
+.range{width:100px}
+#pedal{min-width:72px}
+#recordPanel{position:absolute;left:10px;bottom:10px;background:#121216e8;border:1px solid var(--line);border-radius:12px;padding:8px;font-size:11px;display:none;z-index:20}
+#recordPanel.show{display:block}
+#metronome{width:90px}
+#loading{position:absolute;inset:0;display:grid;place-items:center;background:#0a0a0be8;z-index:30}
+.loadbox{width:min(340px,80%);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;text-align:center}
+.bar{height:5px;background:#2a2a2e;border-radius:99px;overflow:hidden;margin-top:12px}.bar>i{display:block;height:100%;width:0;background:var(--gold)}
+#hint{color:var(--muted);font-size:10px;margin-top:6px}
+@media(max-height:430px){#app{padding-top:5px}.top{min-height:34px}.brand{font-size:11px}button{min-height:34px;padding:0 8px}.label{bottom:5px}}
+</style>
+</head>
+<body>
+<div id="app">
+ <div class="top">
+  <div><div class="brand">Piano Studio</div><div class="status" id="status">Loading acoustic piano…</div></div>
+  <div class="controls">
+   <button id="recordBtn" class="small">● Record</button>
+   <button id="playBtn" class="small">▶ Play</button>
+   <button id="metBtn" class="small">Metronome</button>
+   <button id="settingsBtn" class="small">⚙</button>
+  </div>
+ </div>
+ <div id="studio">
+  <div id="pianoViewport"><div id="piano"></div><div id="loading"><div class="loadbox"><strong>Loading the grand piano</strong><div class="bar"><i id="progress"></i></div><div id="hint">Real Yamaha C5 recordings · offline after install</div></div></div><div id="recordPanel"></div></div>
+ </div>
+ <div id="bottom">
+  <div class="group"><button id="prevOct" class="small">‹</button><button id="nextOct" class="small">›</button><span class="small" id="rangeText">C4</span></div>
+  <div class="group"><span class="small">Zoom</span><input id="zoom" class="range" type="range" min="1.5" max="6" step=".1" value="3"></div>
+  <div class="group"><span class="small">Vol</span><input id="volume" class="range" type="range" min="0" max="1" step=".01" value=".85"></div>
+  <div class="group"><span class="small">Reverb</span><input id="reverb" class="range" type="range" min="0" max=".8" step=".01" value=".22"></div>
+  <div class="group"><button id="pedal" class="small">Sustain OFF</button></div>
+ </div>
+</div>
+<script>
+(()=> {
+const SAMPLE_NOTES=["A0","C1","Ds1","Fs1","A1","C2","Ds2","Fs2","A2","C3","Ds3","Fs3","A3","C4","Ds4","Fs4","A4","C5","Ds5","Fs5","A5","C6","Ds6","Fs6","A6","C7","Ds7","Fs7","C8"];
+const midiNames=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const keyMidi=[]; for(let m=21;m<=108;m++)keyMidi.push(m);
+const blackSet=new Set([1,3,6,8,10]);
+const $=id=>document.getElementById(id);
+let ctx=null,master=null,comp=null,reverbNode=null,convolver=null;
+let buffers=new Map(), voices=new Map(), pointerNotes=new Map(), recording=false,recordStart=0,events=[],playing=false,sustain=false,loaded=0;
+let visibleStart=48, zoom=3, metronome=false, metTimer=null, bpm=100;
+const piano=$("piano"), viewport=$("pianoViewport");
+
+function noteName(m){return midiNames[m%12]+(Math.floor(m/12)-1)}
+function sampleFile(m){
+ let best=SAMPLE_NOTES[0],bestD=999;
+ for(const n of SAMPLE_NOTES){
+  const mm=nameToMidi(n),d=Math.abs(mm-m);
+  if(d<bestD){best=n;bestD=d}
+ }
+ return best;
+}
+function nameToMidi(n){
+ const mat=n.match(/^([A-G])([#s]?)(-?\d+)$/); if(!mat)return 60;
+ const map={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+ return (parseInt(mat[3],10)+1)*12+map[mat[1]]+(mat[2]?1:0);
+}
+function ensureAudio(){
+ if(ctx)return;
+ ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:"interactive"});
+ master=ctx.createGain(); master.gain.value=.85;
+ comp=ctx.createDynamicsCompressor(); comp.threshold.value=-16; comp.knee.value=18; comp.ratio.value=3; comp.attack.value=.003; comp.release.value=.18;
+ convolver=ctx.createConvolver(); reverbNode=ctx.createGain(); reverbNode.gain.value=.22;
+ master.connect(comp); comp.connect(ctx.destination);
+ convolver.connect(reverbNode); reverbNode.connect(comp);
+ ctx.resume();
+}
+async function loadSamples(){
+ ensureAudio();
+ let total=SAMPLE_NOTES.length;
+ await Promise.all(SAMPLE_NOTES.map(async n=>{
+   try{
+    const r=await fetch("samples/"+n+".mp3");
+    const b=await r.arrayBuffer();
+    const decoded=await ctx.decodeAudioData(b);
+    buffers.set(n,decoded);
+   }catch(e){console.error(n,e)}
+   loaded++; $("progress").style.width=(loaded/total*100)+"%";
+ }));
+ // A short internal impulse response: subtle room, no synthetic piano tone.
+ const ir=ctx.createBuffer(2,Math.floor(ctx.sampleRate*1.1),ctx.sampleRate);
+ for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<d.length;i++){d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3.2)}}
+ convolver.buffer=ir;
+ $("loading").style.display="none";
+ $("status").textContent="88 keys · polyphonic · ready";
+ render();
+}
+function velocityFromEvent(ev,key){
+ if(ev.pressure&&ev.pressure>0) return Math.min(1,Math.max(.12,ev.pressure));
+ const r=key.getBoundingClientRect(); const y=Math.max(0,Math.min(r.height,ev.clientY-r.top));
+ return .38 + .62*(1-y/r.height);
+}
+function playNote(midi,vel=0.8){
+ ensureAudio(); ctx.resume();
+ const sample=sampleFile(midi),buf=buffers.get(sample); if(!buf)return;
+ const src=ctx.createBufferSource(),g=ctx.createGain(),dry=ctx.createGain(),wet=ctx.createGain();
+ const semitone=midi-nameToMidi(sample),rate=Math.pow(2,semitone/12);
+ src.buffer=buf; src.playbackRate.value=rate;
+ const now=ctx.currentTime;
+ const attack=.002, peak=.78*Math.pow(vel,0.72);
+ g.gain.setValueAtTime(.0001,now); g.gain.exponentialRampToValueAtTime(Math.max(.02,peak),now+attack);
+ src.connect(g); g.connect(dry); g.connect(wet); dry.gain.value=1; wet.gain.value=.24; dry.connect(master); wet.connect(convolver);
+ src.start(now);
+ const voice={src,g,midi,ended:false};
+ const old=voices.get(midi); if(old){try{old.gain.cancelScheduledValues(now);old.gain.linearRampToValueAtTime(.0001,now+.008);old.src.stop(now+.012)}catch(e){}}
+ voices.set(midi,voice);
+ if(recording)events.push({t:performance.now()-recordStart,type:"on",m:midi,v:vel});
+ return voice;
+}
+function stopNote(midi){
+ const v=voices.get(midi); if(!v)return;
+ if(sustain){v.sustained=true;return}
+ release(v);
+ if(recording)events.push({t:performance.now()-recordStart,type:"off",m:midi});
+}
+function release(v){
+ if(!v||v.ended)return;v.ended=true;
+ const now=ctx.currentTime;
+ try{v.gain.cancelScheduledValues(now);v.gain.setValueAtTime(Math.max(.0001,v.gain.value),now);v.gain.exponentialRampToValueAtTime(.0001,now+.18);v.src.stop(now+.2)}catch(e){}
+ if(voices.get(v.midi)===v)voices.delete(v.midi);
+}
+function releaseSustain(){for(const v of [...voices.values()])if(v.sustained){v.sustained=false;release(v)}}
+function keyFor(m){return piano.querySelector('[data-midi="'+m+'"]')}
+function pointerDown(ev,key){
+ ev.preventDefault(); ensureAudio(); key.setPointerCapture?.(ev.pointerId);
+ const m=+key.dataset.midi;
+ if(pointerNotes.has(ev.pointerId)) pointerUp(ev);
+ pointerNotes.set(ev.pointerId,m); key.classList.add("down");
+ playNote(m,velocityFromEvent(ev,key));
+}
+function pointerUp(ev){
+ ev.preventDefault();
+ const m=pointerNotes.get(ev.pointerId); if(m==null)return;
+ pointerNotes.delete(ev.pointerId); const key=keyFor(m); if(key)key.classList.remove("down"); stopNote(m);
+}
+function move(ev){
+ const el=document.elementFromPoint(ev.clientX,ev.clientY); const key=el?.closest?.(".key"); const old=pointerNotes.get(ev.pointerId);
+ if(!key||old==null)return;
+ const m=+key.dataset.midi;if(m===old)return;
+ const oldKey=keyFor(old);if(oldKey)oldKey.classList.remove("down");stopNote(old);
+ pointerNotes.set(ev.pointerId,m);key.classList.add("down");playNote(m,velocityFromEvent(ev,key));
+}
+function render(){
+ const rect=viewport.getBoundingClientRect(),width=rect.width;
+ const octaves=zoom; const whiteCount=Math.ceil(octaves*7)+1; const whiteW=Math.max(28,width/whiteCount);
+ piano.innerHTML="";
+ let whites=[];
+ for(const m of keyMidi)if(!blackSet.has(m%12))whites.push(m);
+ const startIndex=Math.max(0,whites.findIndex(m=>m>=visibleStart));
+ const shown=whites.slice(startIndex,startIndex+whiteCount+1);
+ const startMidi=shown[0]??48;
+ const mapX=new Map(); shown.forEach((m,i)=>mapX.set(m,i));
+ const pianoWidth=shown.length*whiteW; piano.style.width=pianoWidth+"px";
+ shown.forEach((m,i)=>{
+   const k=document.createElement("div");k.className="key white";k.dataset.midi=m;k.style.left=(i*whiteW)+"px";k.style.width=whiteW+"px";
+   const lab=document.createElement("div");lab.className="label";lab.textContent=noteName(m);k.append(lab);piano.append(k);
+ });
+ for(const m of keyMidi){
+   if(!blackSet.has(m%12))continue;
+   const prev=m-1;if(!mapX.has(prev))continue;
+   const k=document.createElement("div");k.className="key black";k.dataset.midi=m;
+   k.style.width=Math.max(18,whiteW*.62)+"px";k.style.left=((mapX.get(prev)+1)*whiteW-whiteW*.31)+"px";
+   const lab=document.createElement("div");lab.className="label";lab.textContent=noteName(m);k.append(lab);piano.append(k);
+ }
+ piano.style.transform="scaleY(1)";
+ piano.querySelectorAll(".key").forEach(k=>{
+   k.addEventListener("pointerdown",e=>pointerDown(e,k),{passive:false});
+   k.addEventListener("pointerup",pointerUp,{passive:false});
+   k.addEventListener("pointercancel",pointerUp,{passive:false});
+   k.addEventListener("pointerleave",()=>{});
+   k.addEventListener("pointermove",move,{passive:false});
+ });
+ $("rangeText").textContent=noteName(startMidi)+" → "+noteName(shown[shown.length-1]||startMidi);
+}
+function recordToggle(){
+ recording=!recording;
+ if(recording){events=[];recordStart=performance.now();$("recordBtn").textContent="■ Stop";$("recordBtn").classList.add("active");$("status").textContent="Recording…"}
+ else{$("recordBtn").textContent="● Record";$("recordBtn").classList.remove("active");$("status").textContent=events.length?"Take captured":"Ready"}
+}
+function playTake(){
+ if(playing||!events.length)return; playing=true;$("playBtn").classList.add("active");$("status").textContent="Playing take…";
+ const t0=events[0]?.t||0;
+ events.forEach(e=>setTimeout(()=>{if(e.type==="on")playNote(e.m,e.v);else stopNote(e.m)},Math.max(0,e.t-t0)));
+ const end=events[events.length-1]?.t||0;setTimeout(()=>{playing=false;$("playBtn").classList.remove("active");$("status").textContent="Ready"},end-t0+500);
+}
+function toggleMet(){
+ metronome=!metronome;$("metBtn").classList.toggle("active",metronome);
+ if(metronome){startMet();}else stopMet();
+}
+function startMet(){stopMet();metTimer=setInterval(()=>{ensureAudio();const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=880;g.gain.setValueAtTime(.0001,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.055,ctx.currentTime+.004);g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.06);o.connect(g).connect(master);o.start();o.stop(ctx.currentTime+.07)},60000/bpm)}
+function stopMet(){if(metTimer){clearInterval(metTimer);metTimer=null}}
+$("recordBtn").onclick=recordToggle;$("playBtn").onclick=playTake;$("metBtn").onclick=toggleMet;
+$("pedal").onclick=()=>{sustain=!sustain;$("pedal").textContent=sustain?"Sustain ON":"Sustain OFF";$("pedal").classList.toggle("active",sustain);if(!sustain)releaseSustain()}
+$("zoom").oninput=e=>{zoom=+e.target.value;render()}
+$("volume").oninput=e=>{if(master)master.gain.value=+e.target.value}
+$("reverb").oninput=e=>{if(reverbNode)reverbNode.gain.value=+e.target.value}
+$("prevOct").onclick=()=>{visibleStart=Math.max(21,visibleStart-12);render()}
+$("nextOct").onclick=()=>{visibleStart=Math.min(96,visibleStart+12);render()}
+$("settingsBtn").onclick=()=>alert("Piano Studio\n\n• 88-key A0–C8 range\n• Real Salamander Grand Piano samples\n• Independent multitouch voices\n• Touch-position velocity\n• Sustain\n• Recording + playback\n• Metronome\n• Zoom + octave navigation\n\nSamples: Alexander Holm, CC BY 3.0");
+window.addEventListener("resize",render);
+window.addEventListener("pointerup",pointerUp,{passive:false});
+window.addEventListener("pointercancel",pointerUp,{passive:false});
+loadSamples();
+})();
+</script>
+</body>
+</html>
