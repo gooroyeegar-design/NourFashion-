@@ -2,6 +2,8 @@ name: Build Piano Studio APK
 on:
   push:
     branches: [ "piano-app" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
