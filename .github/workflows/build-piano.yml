@@ -1,0 +1,66 @@
+name: Build Piano Studio APK
+on:
+  push:
+    branches: [ "piano-app" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: piano
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Download real piano samples
+        run: |
+          mkdir -p app/src/main/assets/samples
+          for note in A0 C1 Ds1 Fs1 A1 C2 Ds2 Fs2 A2 C3 Ds3 Fs3 A3 C4 Ds4 Fs4 A4 C5 Ds5 Fs5 A5 C6 Ds6 Fs6 A6 C7 Ds7 Fs7 C8; do
+            curl -fsSL --retry 4 --retry-delay 2 "https://tonejs.github.io/audio/salamander/$note.mp3" -o "app/src/main/assets/samples/$note.mp3"
+          done
+          cat > app/src/main/assets/SAMPLE_CREDITS.txt <<'EOF'
+Piano samples: Salamander Grand Piano V3
+Author: Alexander Holm
+Instrument: Yamaha C5 grand piano
+License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+Source: https://github.com/sfzinstruments/SalamanderGrandPiano
+The bundled files are the Tone.js-converted compact sample set.
+EOF
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Verify APK
+        run: |
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Piano-Studio-debug
+          path: piano/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
