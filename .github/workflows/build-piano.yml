@@ -50,6 +50,27 @@ jobs:
           status=${PIPESTATUS[0]}
           exit $status
 
+      - name: Android emulator launch smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am force-stop com.gooroyeegar.pianostudio
+            adb shell monkey -p com.gooroyeegar.pianostudio 1
+            sleep 5
+            if adb shell pidof com.gooroyeegar.pianostudio >/dev/null 2>&1; then
+              echo "LAUNCH_SMOKE_TEST=PASS"
+            else
+              echo "LAUNCH_SMOKE_TEST=FAIL"
+              adb logcat -d -t 400
+              exit 1
+            fi
+
       - name: Verify APK
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
