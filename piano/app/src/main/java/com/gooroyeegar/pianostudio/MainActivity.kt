@@ -45,7 +45,7 @@ class MainActivity : Activity() {
         private var audioReady = false
         private var sustain = false
         private var octave = 4
-        private var volume = .88f
+        private var volume = 0.88f
         private var keyWidth = 42f
 
         private var soundPool: SoundPool? = null
@@ -110,7 +110,7 @@ class MainActivity : Activity() {
             val pool = soundPool ?: return
             val s=nearestSample(m)?:return
             val id=loaded[s.second]?:return
-            val rate=2.0.pow((m-s.first)/12.0).toFloat().coerceIn(.5f,2f)
+            val rate=2.0.pow((m-s.first)/12.0).toFloat().coerceIn(0.5f,2f)
             val stream=pool.play(id,volume*v,volume*v,1,0,rate)
             if(stream!=0)activeStreams[pid]=stream
         }
@@ -143,7 +143,7 @@ class MainActivity : Activity() {
             val wi=floor(x/keyWidth).toInt()
             if(wi !in ws.indices)return null
             val whiteMidi=ws[wi]
-            val bw=keyWidth*.62f;val bh=(bottom-top)*.62f
+            val bw=keyWidth*0.62f;val bh=(bottom-top)*0.62f
             for(i in 0 until ws.size-1){
                 val l=(i+1)*keyWidth-bw/2f
                 if(x in l..(l+bw)&&y<=top+bh){
@@ -156,7 +156,7 @@ class MainActivity : Activity() {
 
         private fun velocity(y:Float):Float {
             val top=132f;val bottom=height-24f
-            return (.35f+.65f*(1f-((y-top)/(bottom-top)).coerceIn(0f,1f))).coerceIn(.2f,1f)
+            return (0.35f+0.65f*(1f-((y-top)/(bottom-top)).coerceIn(0f,1f))).coerceIn(0.2f,1f)
         }
 
         override fun onDraw(c:Canvas){
@@ -184,7 +184,7 @@ class MainActivity : Activity() {
                 paint.color=Color.rgb(155,150,141);c.drawRect(l+keyWidth-1f,top,l+keyWidth,bottom,paint)
                 if(m%12==0||m%12==5){textPaint.color=Color.rgb(100,96,90);textPaint.textSize=9f;c.drawText(noteName(m),l+4f,bottom-9f,textPaint)}
             }
-            val bw=keyWidth*.62f;val bh=(bottom-top)*.62f
+            val bw=keyWidth*0.62f;val bh=(bottom-top)*0.62f
             for((i,m) in ws.withIndex()){
                 val candidate=m+1
                 if(blackSemitones.contains(candidate%12)){
@@ -217,7 +217,7 @@ class MainActivity : Activity() {
                     val i=e.actionIndex;val id=e.getPointerId(i);val x=e.getX(i);val y=e.getY(i)
                     val control=controlAt(x,y)
                     if(control>=0){
-                        when(control){0->octave=(octave-1).coerceAtLeast(1);1->octave=(octave+1).coerceAtMost(7);2->sustain=!sustain;3->{volume+=.1f;if(volume>1f)volume=.2f}}
+                        when(control){0->octave=(octave-1).coerceAtLeast(1);1->octave=(octave+1).coerceAtMost(7);2->sustain=!sustain;3->{volume+=0.1f;if(volume>1f)volume=0.2f}}
                         invalidate();return true
                     }
                     val m=keyAt(x,y)
