@@ -48,7 +48,7 @@ class MainActivity : Activity() {
         private var volume = .88f
         private var keyWidth = 42f
 
-        private val soundPool: SoundPool
+        private var soundPool: SoundPool? = null
         private val sampleNotes = listOf("A0","C1","Ds1","Fs1","A1","C2","Ds2","Fs2","A2","C3","Ds3","Fs3","A3","C4","Ds4","Fs4","A4","C5","Ds5","Fs5","A5","C6","Ds6","Fs6","A6","C7","Ds7","Fs7","C8")
         private val midiNames = arrayOf("C","C#","D","D#","E","F","F#","G","G#","A","A#","B")
         private val blackSemitones = setOf(1,3,6,8,10)
@@ -57,21 +57,7 @@ class MainActivity : Activity() {
 
         init {
             setBackgroundColor(bg)
-            val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
-            soundPool = SoundPool.Builder().setAudioAttributes(attrs).setMaxStreams(32).build()
-            soundPool.setOnLoadCompleteListener { _,_,status ->
-                if (status == 0) { loadedCount++; audioReady = loadedCount >= sampleNotes.size; invalidate() }
-            }
-            Thread {
-                for (note in sampleNotes) {
-                    try {
-                        assets.openFd("samples/" + note + ".mp3").use { afd ->
-                            val id = soundPool.load(afd,1)
-                            synchronized(loaded) { loaded[note] = id }
-                        }
-                    } catch (_: Exception) {}
-                }
-            }.start()
+            // Audio is initialized only after the UI is visible and the user touches a key.
         }
 
         private fun noteName(m:Int) = midiNames[(m % 12 + 12) % 12] + (m / 12 - 1)
@@ -92,21 +78,49 @@ class MainActivity : Activity() {
             return best?.let{sampleMidi(it) to it}
         }
 
+        private fun ensureAudio() {
+            if (soundPool != null) return
+            try {
+                val attrs = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_GAME)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+                val pool = SoundPool.Builder().setAudioAttributes(attrs).setMaxStreams(32).build()
+                pool.setOnLoadCompleteListener { _,_,status ->
+                    if (status == 0) { loadedCount++; audioReady = loadedCount >= sampleNotes.size; invalidate() }
+                }
+                soundPool = pool
+                Thread {
+                    for (note in sampleNotes) {
+                        try {
+                            assets.openFd("samples/" + note + ".mp3").use { afd ->
+                                val id = pool.load(afd,1)
+                                synchronized(loaded) { loaded[note] = id }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }.start()
+            } catch (_: Throwable) {
+                audioReady = false
+            }
+        }
+
         private fun play(m:Int,v:Float,pid:Int) {
-            if(!audioReady)return
+            ensureAudio()
+            val pool = soundPool ?: return
             val s=nearestSample(m)?:return
             val id=loaded[s.second]?:return
             val rate=2.0.pow((m-s.first)/12.0).toFloat().coerceIn(.5f,2f)
-            val stream=soundPool.play(id,volume*v,volume*v,1,0,rate)
+            val stream=pool.play(id,volume*v,volume*v,1,0,rate)
             if(stream!=0)activeStreams[pid]=stream
         }
 
         private fun stop(pid:Int) {
             val stream=activeStreams.remove(pid)?:return
-            if(!sustain)soundPool.stop(stream)
+            if(!sustain)soundPool?.stop(stream)
         }
 
-        fun releaseAudio(){soundPool.release()}
+        fun releaseAudio(){ try { soundPool?.release() } catch (_: Exception) {} }
 
         private fun visibleWhiteCount()=ceil(width.coerceAtLeast(1)/keyWidth).toInt().coerceAtLeast(8)
 
@@ -180,9 +194,9 @@ class MainActivity : Activity() {
                 }
             }
             if(!audioReady){
-                paint.color=Color.argb(190,10,10,12);c.drawRect(0f,top,width.toFloat(),bottom,paint)
-                textPaint.color=text;textPaint.textSize=15f
-                val msg="Loading piano samples…";c.drawText(msg,width/2f-textPaint.measureText(msg)/2f,(top+bottom)/2f,textPaint)
+                textPaint.color=muted
+                textPaint.textSize=10f
+                c.drawText("Touch a key to load acoustic samples",18f,top+18f,textPaint)
             }
         }
 
