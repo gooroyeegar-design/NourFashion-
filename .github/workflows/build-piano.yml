@@ -44,12 +44,25 @@ jobs:
           printf '%s\n'             'Piano samples: Salamander Grand Piano V3'             'Author: Alexander Holm'             'Instrument: Yamaha C5 grand piano'             'License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)'             'Source: https://github.com/sfzinstruments/SalamanderGrandPiano'             'The bundled files are the Tone.js-converted compact sample set.'             > app/src/main/assets/SAMPLE_CREDITS.txt
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: |
+          set +e
+          gradle :app:assembleDebug --no-daemon --stacktrace --console=plain 2>&1 | tee app/build.log
+          status=${PIPESTATUS[0]}
+          exit $status
 
       - name: Verify APK
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
           ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Piano-Studio-build-log
+          path: piano/app/build.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
