@@ -40,14 +40,7 @@ jobs:
           for note in A0 C1 Ds1 Fs1 A1 C2 Ds2 Fs2 A2 C3 Ds3 Fs3 A3 C4 Ds4 Fs4 A4 C5 Ds5 Fs5 A5 C6 Ds6 Fs6 A6 C7 Ds7 Fs7 C8; do
             curl -fsSL --retry 4 --retry-delay 2 "https://tonejs.github.io/audio/salamander/$note.mp3" -o "app/src/main/assets/samples/$note.mp3"
           done
-          cat > app/src/main/assets/SAMPLE_CREDITS.txt <<'EOF'
-Piano samples: Salamander Grand Piano V3
-Author: Alexander Holm
-Instrument: Yamaha C5 grand piano
-License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
-Source: https://github.com/sfzinstruments/SalamanderGrandPiano
-The bundled files are the Tone.js-converted compact sample set.
-EOF
+          printf '%s\n'             'Piano samples: Salamander Grand Piano V3'             'Author: Alexander Holm'             'Instrument: Yamaha C5 grand piano'             'License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)'             'Source: https://github.com/sfzinstruments/SalamanderGrandPiano'             'The bundled files are the Tone.js-converted compact sample set.'             > app/src/main/assets/SAMPLE_CREDITS.txt
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon
